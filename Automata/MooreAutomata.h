@@ -15,7 +15,7 @@ using State = std::string;
 using MooreTransitionTable = std::list<std::pair<InputSymbol, std::vector<State>>>;
 using MooreStatesInfo = std::vector<std::pair<State, OutputSymbol>>;
 
-class Group
+class MooreGroup
 {
 public:
     void AddState(const std::string& state)
@@ -107,10 +107,10 @@ public:
     {
         std::string firstOutput = m_statesInfo.front().second;
 
-        std::map<OutputSymbol, std::vector<Group>> groups;
+        std::map<OutputSymbol, std::vector<MooreGroup>> groups;
         std::map<OutputSymbol, std::vector<State>> statesByOutput = GetOutputToStatesMap();
         std::map<State, unsigned> stateIndexes = GetStateIndexes();
-        std::map<State, Group*> stateToGroup;
+        std::map<State, MooreGroup*> stateToGroup;
 
         for (auto& it: statesByOutput)
         {
@@ -118,7 +118,7 @@ public:
             {
                 if (!groups.contains(it.first))
                 {
-                    groups.emplace(it.first, std::vector<Group>());
+                    groups.emplace(it.first, std::vector<MooreGroup>());
                     groups[it.first].emplace_back();
                 }
                 groups.at(it.first).begin()->AddState(state);
@@ -133,7 +133,7 @@ public:
             {
                 for (auto& group: elem.second)
                 {
-                    std::vector<Group*> transitionGroups;
+                    std::vector<MooreGroup*> transitionGroups;
                     std::set<State> states = group.GetStates();
 
                     for (auto& state: states)
@@ -146,6 +146,7 @@ public:
 
                         if (transitionGroups != GetStateTransitionGroups(stateToGroup, stateIndexes[state]))
                         {
+
                             elem.second.emplace_back();
                             elem.second.back().AddState(state);
 
@@ -168,7 +169,7 @@ public:
 private:
     static constexpr char NEW_STATE_CHAR = 'X';
 
-    void BuildMinimizedAutomata(std::map<OutputSymbol, std::vector<Group>>& groups,
+    void BuildMinimizedAutomata(std::map<OutputSymbol, std::vector<MooreGroup>>& groups,
         std::map<State, unsigned>& stateIndexes, const std::string& firstOutput)
     {
         MooreStatesInfo statesInfo;
@@ -223,7 +224,7 @@ private:
     }
 
     static std::map<State, State> GetStateToNewStateMap(std::map<OutputSymbol,
-        std::vector<Group>>& groups, const std::string& firstOutput)
+        std::vector<MooreGroup>>& groups, const std::string& firstOutput)
     {
         std::map<State, State> stateToNewState;
         for (unsigned index = 1; auto& it: groups)
@@ -249,9 +250,9 @@ private:
         return stateToNewState;
     }
 
-    std::vector<Group*> GetStateTransitionGroups(std::map<State, Group*>& stateToGroup, unsigned index) const
+    std::vector<MooreGroup*> GetStateTransitionGroups(std::map<State, MooreGroup*>& stateToGroup, unsigned index) const
     {
-        std::vector<Group*> group;
+        std::vector<MooreGroup*> group;
         for (auto& row: m_transitionTable)
         {
             std::string state = row.second[index];
@@ -261,7 +262,7 @@ private:
         return group;
     }
 
-    static unsigned GetGroupsSize(const std::map<OutputSymbol, std::vector<Group>>& groups)
+    static unsigned GetGroupsSize(const std::map<OutputSymbol, std::vector<MooreGroup>>& groups)
     {
         unsigned size = 0;
         for (auto& it: groups)
