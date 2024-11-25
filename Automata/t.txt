@@ -1,0 +1,52 @@
+for (auto& group: groups)
+        {
+            std::vector<State> transitions;
+            // при первом чтении класть следующие состояния в вектор
+            // при последующих считываниях - сверять с теми, которые имеются в transitions
+            // при несовпадении добавлять в groups и удалять их текущей группы
+
+            bool isFirstReading = true;
+            for (unsigned stateIndex = 0; auto& state: group.second)
+            {
+                bool isNewGroup = false;
+
+                if (isFirstReading)
+                {
+                    isFirstReading = false;
+                    for (auto& row: m_transitionTable)
+                    {
+                        for (auto& nextState: row.second)
+                        {
+                            transitions.push_back(nextState);
+                        }
+                    }
+                }
+                else
+                {
+                    for (auto& row: m_transitionTable)
+                    {
+                        bool isDiffer = false;
+                        for (unsigned i = 0 ;auto& nextState: row.second)
+                        {
+                            if (transitions.at(i) != nextState)
+                            {
+                                isDiffer = true;
+                                break;
+                            }
+                        }
+
+                        if (isDiffer)
+                        {
+                            isNewGroup = true;
+                            break;
+                        }
+                    }
+                }
+                if (isNewGroup)
+                {
+                    groups.emplace(group.first, std::vector<State>());
+                    group.second.erase(group.second.begin() + stateIndex);
+                }
+                ++stateIndex;
+            }
+        }
