@@ -1,3 +1,0 @@
-dispatcher: cmake
-makeHome: .
-target: mealy_moore_converter
