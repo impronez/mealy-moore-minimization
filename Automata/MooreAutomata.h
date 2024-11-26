@@ -76,6 +76,8 @@ public:
             throw std::runtime_error("Could not open the file for writing.");
         }
 
+        unsigned size = m_statesInfo.size();
+
         std::string statesStr, outputSymbolsStr;
         for (const auto& info : m_statesInfo)
         {
@@ -94,6 +96,10 @@ public:
 
             for (const auto& transitions: m_transitionTable)
             {
+                if (transitions.second.size() != size)
+                {
+                    throw std::runtime_error("Transitions row length incorrect");
+                }
                 if (transitions.first == input)
                 {
                     for (const auto& transition : transitions.second)
@@ -277,6 +283,7 @@ private:
         m_statesInfo = newStatesInfo;
         m_transitionTable = newTransitionTable;
     }
+
     std::map<State, std::vector<State>> GetStatesTransitions()
     {
         std::map<State, std::vector<State>> statesTransitions;
@@ -397,7 +404,6 @@ private:
 
         return stateToNewState;
     }
-
 
     std::map<State, unsigned> GetStateIndexes()
     {
