@@ -170,19 +170,6 @@ public:
             }
         }
 
-        for (auto& pair: outputToGroup)
-        {
-            for (auto& group: pair.second)
-            {
-                std::cout << "Group: ";
-                for (auto& state: group.GetStates())
-                {
-                    std::cout << state << " ";
-                }
-                std::cout << std::endl;
-            }
-        }
-
         BuildMinimizedAutomata(stateToGroup, outputToGroup);
     }
 
