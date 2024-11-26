@@ -76,8 +76,6 @@ public:
             throw std::runtime_error("Could not open the file for writing.");
         }
 
-        unsigned size = m_statesInfo.size();
-
         std::string statesStr, outputSymbolsStr;
         for (const auto& info : m_statesInfo)
         {
@@ -96,10 +94,6 @@ public:
 
             for (const auto& transitions: m_transitionTable)
             {
-                if (transitions.second.size() != size)
-                {
-                    throw std::runtime_error("Transitions row length incorrect");
-                }
                 if (transitions.first == input)
                 {
                     for (const auto& transition : transitions.second)
@@ -322,6 +316,7 @@ private:
             {
                 indexesToRemove.emplace(indexesToRemove.begin(), i);
             }
+            ++i;
         }
 
         for (auto& row: m_transitionTable)
@@ -388,7 +383,7 @@ private:
             {
                 for(auto& state: group.GetStates())
                 {
-                    if (it.first == firstOutput)
+                    if (state == firstOutput)
                     {
                         stateToNewState[state] = NEW_STATE_CHAR + std::to_string(0);
                         continue;
