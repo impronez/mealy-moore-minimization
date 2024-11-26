@@ -119,12 +119,14 @@ public:
 
         while (true)
         {
-            unsigned size = GetGroupsCount(outputToGroup);
+            bool isChangedSize = false;
+
             for (auto& pair: outputToGroup)
             {
+                std::vector<MealyGroup> newGroups;
                 for (auto& group: pair.second)
                 {
-                    if (group.GetStatesCount() == 1)
+                    if (group.GetStatesCount() <= 1)
                     {
                         continue;
                     }
@@ -153,18 +155,25 @@ public:
                                 MealyGroup newGroup;
                                 newGroup.AddState(state);
 
-                                pair.second.emplace_back(newGroup);
-                                stateToGroup[state] = &pair.second.back();
+                                newGroups.push_back(newGroup);
+                                stateToGroup[state] = &newGroups.back();
 
                                 break;
                             }
                         }
-
+                    }
+                }
+                for (auto& it: newGroups)
+                {
+                    pair.second.push_back(it);
+                    if (!isChangedSize)
+                    {
+                        isChangedSize = true;
                     }
                 }
             }
 
-            if (GetGroupsCount(outputToGroup) == size)
+            if (!isChangedSize)
             {
                 break;
             }
