@@ -100,7 +100,7 @@ public:
         }
     }
 
-    void Minimize1()
+    void Minimize() override
     {
         RemoveImpossibleState();
 
@@ -171,68 +171,6 @@ public:
         }
 
         BuildMinimizedAutomata(stateToGroup, outputToGroup);
-
-        // for (auto& pair: outputToGroup)
-        // {
-        //     for (auto& group: pair.second)
-        //     {
-        //         std::cout << "Group: ";
-        //         for (auto& state: group.GetStates())
-        //         {
-        //             std::cout << state << " ";
-        //         }
-        //         std::cout << std::endl;
-        //     }
-        // }
-    }
-
-    void Minimize() override
-    {
-        RemoveImpossibleState();
-
-        size_t index = FIRST_STATE_INDEX;
-
-        MealyStates newStates;
-
-        std::map<std::string, std::string> minimizatedStates;
-        std::map<std::vector<std::string>, std::string> statesTransitions;
-        std::map<std::string, std::vector<Transition>> newStateToTransitionsColumn;
-
-        for (size_t j = 0; j < m_states.size(); j++)
-        {
-            std::vector<std::string> transitionsColumn;
-            std::vector<Transition> transitions;
-
-            for (auto& row: m_transitionTable)
-            {
-                transitionsColumn.emplace_back(row.second.at(j).output);
-                transitions.push_back(row.second.at(j));
-            }
-
-            if (!statesTransitions.contains(transitionsColumn))
-            {
-                std::string newState = STATE_CHAR + std::to_string(index++);
-
-                statesTransitions[transitionsColumn] = newState;
-
-                minimizatedStates[m_states.at(j)] = newState;
-
-                newStateToTransitionsColumn[newState] = transitions;
-
-                newStates.emplace_back(newState);
-            }
-            else
-            {
-                std::string oldState = m_states.at(j);
-                std::string newState = statesTransitions[transitionsColumn];
-
-                minimizatedStates[oldState] = newState;
-            }
-        }
-
-        m_states = newStates;
-
-        m_transitionTable = GetNewTransitionTable(minimizatedStates, newStateToTransitionsColumn);
     }
 
 private:
@@ -371,7 +309,8 @@ private:
         return stateTransitions;
     }
 
-    void InitGroups(std::map<State, MealyGroup*>& stateToGroup, std::map<std::vector<OutputSymbol>, std::vector<MealyGroup>>& outputToGroup)
+    void InitGroups(std::map<State, MealyGroup*>& stateToGroup,
+        std::map<std::vector<OutputSymbol>, std::vector<MealyGroup>>& outputToGroup) const
     {
         unsigned size = m_states.size();
         for (size_t i = 0; i < size; i++)
@@ -398,36 +337,6 @@ private:
                 outputToGroup[transitions].back().AddState(state);
             }
         }
-    }
-
-    MealyTransitionTable GetNewTransitionTable(std::map<std::string, std::string>& oldToNewStates,
-        std::map<std::string, std::vector<Transition>>& newStateToTransitionsColumn) const
-    {
-        MealyTransitionTable table;
-        auto inputSymbols = GetInputSymbols();
-
-        std::map<std::string, std::vector<Transition>> newTransitionsTable;
-
-        for (auto& it: newStateToTransitionsColumn)
-        {
-            size_t rowIndex = 0;
-
-            for (auto transition: it.second)
-            {
-                transition.nextState = oldToNewStates.at(transition.nextState);
-
-                newTransitionsTable[inputSymbols[rowIndex]].push_back(transition);
-
-                rowIndex++;
-            }
-        }
-
-        for (auto& it: newTransitionsTable)
-        {
-            table.emplace_back(it);
-        }
-
-        return table;
     }
 
     void RemoveImpossibleState()
@@ -501,18 +410,6 @@ private:
         }
 
         throw std::range_error("Invalid state");
-    }
-
-    [[nodiscard]] std::vector<std::string> GetInputSymbols() const
-    {
-        std::vector<std::string> inputSymbols;
-
-        for (auto& it: m_transitionTable)
-        {
-            inputSymbols.emplace_back(it.first);
-        }
-
-        return inputSymbols;
     }
 
     MealyStates m_states;
