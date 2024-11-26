@@ -146,7 +146,7 @@ public:
 
                         for (unsigned i = 0; auto& it: statesTransitions[state])
                         {
-                            if (mainStateTransitions.at(i) != stateToGroup[it])
+                            if (mainStateTransitions.at(i++) != stateToGroup[it])
                             {
                                 group.RemoveState(state);
 
@@ -167,6 +167,19 @@ public:
             if (GetGroupsCount(outputToGroup) == size)
             {
                 break;
+            }
+        }
+
+        for (auto& pair: outputToGroup)
+        {
+            for (auto& group: pair.second)
+            {
+                std::cout << "Group: ";
+                for (auto& state: group.GetStates())
+                {
+                    std::cout << state << " ";
+                }
+                std::cout << std::endl;
             }
         }
 
