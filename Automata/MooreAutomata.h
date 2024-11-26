@@ -9,51 +9,8 @@
 
 #include "IAutomata.h"
 
-using InputSymbol = std::string;
-using OutputSymbol = std::string;
-using State = std::string;
 using MooreTransitionTable = std::list<std::pair<InputSymbol, std::vector<State>>>;
 using MooreStatesInfo = std::vector<std::pair<State, OutputSymbol>>;
-
-class MooreGroup
-{
-public:
-    void AddState(const std::string& state)
-    {
-        m_states.emplace(state);
-    }
-
-    void RemoveState(const std::string& state)
-    {
-        if (m_states.contains(state))
-        {
-            m_states.erase(state);
-        }
-    }
-
-    [[nodiscard]] std::set<State> GetStates() const
-    {
-        return m_states;
-    }
-
-    [[nodiscard]] size_t GetStatesCount() const
-    {
-        return m_states.size();
-    }
-
-    std::string GetMainState()
-    {
-        for (auto& state : m_states)
-        {
-            return state;
-        }
-
-        throw std::runtime_error("No state found");
-    }
-
-private:
-    std::set<State> m_states {};
-};
 
 class MooreAutomata final : public IAutomata
 {
@@ -112,37 +69,20 @@ public:
     {
         RemoveImpossibleStates();
 
-        std::string firstOutput = m_statesInfo.front().second;
+        std::map<OutputSymbol, std::vector<Group>> groups;
+        std::map<State, Group*> stateToGroup;
+        InitGroups(groups, stateToGroup);
 
-        std::map<OutputSymbol, std::vector<MooreGroup>> groups;
-        std::map<OutputSymbol, std::vector<State>> statesByOutput = GetOutputToStatesMap();
         std::map<State, unsigned> stateIndexes = GetStateIndexes();
-        std::map<State, MooreGroup*> stateToGroup;
-
         auto statesTransitions = GetStatesTransitions();
-
-        // To InitGroups()
-        for (auto& it: statesByOutput)
-        {
-            for (auto& state: it.second)
-            {
-                if (!groups.contains(it.first))
-                {
-                    groups.emplace(it.first, std::vector<MooreGroup>());
-                    groups[it.first].emplace_back();
-                }
-                groups.at(it.first).begin()->AddState(state);
-                stateToGroup[state] = &groups.at(it.first).front();
-            }
-        }
 
         while (true)
         {
             bool isChangedSize = false;
             for (auto& pair: groups)
             {
-                std::vector<MooreGroup> newGroups;
-                for (auto& group: pair.second)
+                std::vector<Group> newGroups;
+                for (auto& group : pair.second)
                 {
                     if (group.GetStatesCount() <= 1)
                     {
@@ -150,11 +90,10 @@ public:
                     }
 
                     std::string mainState = group.GetMainState();
-
-                    std::vector<MooreGroup*> groupTransitions;
-                    for (auto& it: statesTransitions[mainState])
+                    std::vector<Group*> groupTransitions;
+                    for (auto& state: statesTransitions[mainState])
                     {
-                        groupTransitions.emplace_back(stateToGroup[it]);
+                        groupTransitions.emplace_back(stateToGroup[state]);
                     }
 
                     for (auto& state: group.GetStates())
@@ -170,7 +109,7 @@ public:
                             {
                                 group.RemoveState(state);
 
-                                MooreGroup newGroup;
+                                Group newGroup;
                                 newGroup.AddState(state);
 
                                 newGroups.push_back(newGroup);
@@ -198,84 +137,93 @@ public:
             }
         }
 
-        // for (auto& it: groups)
-        // {
-        //     for (auto& group: it.second)
-        //     {
-        //         std::cout << "Group: ";
-        //         for (auto& state: group.GetStates())
-        //         {
-        //             std::cout << state << " ";
-        //         }
-        //         std::cout << std::endl;
-        //     }
-        // }
-
         BuildMinimizedAutomata(groups, stateIndexes);
     }
 
 private:
+    static constexpr char NEW_STATE_CHAR = 'X';
 
-    void BuildMinimizedAutomata(std::map<OutputSymbol, std::vector<MooreGroup>>& groups,
+    void BuildMinimizedAutomata(std::map<OutputSymbol, std::vector<Group>>& groups,
         std::map<State, unsigned>& stateIndexes)
     {
-        std::string firstOutput = m_statesInfo.front().first;
+        std::map<State, State> newStateNames = GetNewStateNames(groups);
 
-        MooreStatesInfo newStatesInfo;
-
-        std::vector<std::pair<inputSymbol, std::vector<State>>> transitionTable;
+        std::vector<std::pair<InputSymbol, std::vector<State>>> transitionTableVector;
         for (auto& row: m_transitionTable)
         {
-            transitionTable.emplace_back(row.first, std::vector<State>());
+            transitionTableVector.emplace_back(row.first, std::vector<State>());
         }
 
-        std::map<State, State> newStateNames = GetStateToNewStateMap(groups, firstOutput);
-
-        auto statesTransitions = GetStatesTransitions();
+        MooreStatesInfo newStatesInfo;
+        MooreTransitionTable newTransitionTable;
 
         for (auto& pair: groups)
         {
             for (auto& group: pair.second)
             {
-                std::string state = group.GetMainState();
-                std::string newState = newStateNames[state];
-                std::string outputSymbol = m_statesInfo.at(stateIndexes[state]).second;
+                std::string oldState = group.GetMainState();
+                std::string newState = newStateNames[oldState];
+                unsigned stateIndex = stateIndexes[oldState];
+                std::string output = m_statesInfo[stateIndex].second;
 
-                auto transitions = statesTransitions[state];
-
-                if (state == firstOutput)
+                if (stateIndex == 0)
                 {
-                    newStatesInfo.emplace(newStatesInfo.begin(), newState, outputSymbol);
-
-                    for (unsigned i = 0; auto& it: transitions)
-                    {
-                        std::string nextState = newStateNames[it];
-                        transitionTable.at(i).second.emplace(transitionTable.at(i).second.begin(),
-                            nextState);
-                        ++i;
-                    }
+                    newStatesInfo.emplace(newStatesInfo.begin(), newState, output);
                 }
                 else
                 {
-                    newStatesInfo.emplace_back(newState, outputSymbol);
-                    for (unsigned i = 0; auto& it: transitions)
+                    newStatesInfo.emplace_back(newState, output);
+                }
+
+                for (unsigned i = 0; auto& row: m_transitionTable)
+                {
+                    std::string nextState = row.second[stateIndex];
+                    std::string newNextStateName = newStateNames[nextState];
+
+                    if (stateIndex == 0)
                     {
-                        std::string nextState = newStateNames[it];
-                        transitionTable.at(i).second.emplace_back(nextState);
-                        ++i;
+                        transitionTableVector.at(i).second.emplace(
+                            transitionTableVector.at(i).second.begin(), newNextStateName);
                     }
+                    else
+                    {
+                        transitionTableVector.at(i).second.emplace_back(newNextStateName);
+                    }
+                    ++i;
                 }
             }
         }
 
-        MooreTransitionTable newTransitionTable;
-        for (auto& it: transitionTable)
+        for (auto& row: transitionTableVector)
         {
-            newTransitionTable.emplace_back(it);
+            newTransitionTable.emplace_back(row);
         }
 
         m_statesInfo = newStatesInfo;
         m_transitionTable = newTransitionTable;
+    }
+
+    std::map<State, State> GetNewStateNames(std::map<OutputSymbol, std::vector<Group>>& groups) const
+    {
+        std::string inputState = m_statesInfo.front().first;
+
+        std::map<State, State> newStateNames;
+        unsigned stateIndex = 1;
+
+        for (auto it: groups)
+        {
+            for (auto& group: it.second)
+            {
+                std::string newStateName = group.GetMainState() == inputState
+                    ? NEW_STATE_CHAR + std::to_string(0)
+                    : NEW_STATE_CHAR + std::to_string(stateIndex++);
+                for (auto& state: group.GetStates())
+                {
+                    newStateNames[state] = newStateName;
+                }
+            }
+        }
+        return newStateNames;
     }
 
     std::map<State, std::vector<State>> GetStatesTransitions()
@@ -293,6 +241,51 @@ private:
         }
 
         return statesTransitions;
+    }
+
+    std::map<State, unsigned> GetStateIndexes()
+    {
+        std::map<State, unsigned> stateIndexes;
+        for (unsigned index = 0; auto& state: m_statesInfo)
+        {
+            stateIndexes[state.first] = index++;
+        }
+
+        return stateIndexes;
+    }
+
+    void InitGroups(std::map<OutputSymbol, std::vector<Group>>& groups,
+        std::map<State, Group*>& stateToGroup)
+    {
+        for (auto& it: GetOutputToStatesMap())
+        {
+            for (auto& state: it.second)
+            {
+                if (!groups.contains(it.first))
+                {
+                    groups.emplace(it.first, std::vector<Group>());
+                    groups[it.first].emplace_back();
+                }
+                groups.at(it.first).begin()->AddState(state);
+                stateToGroup[state] = &groups.at(it.first).front();
+            }
+        }
+    }
+
+    std::map<OutputSymbol, std::vector<State>> GetOutputToStatesMap()
+    {
+        std::map<OutputSymbol, std::vector<State>> statesByOutput;
+
+        for(auto& stateInfo: m_statesInfo)
+        {
+            if (!statesByOutput.contains(stateInfo.second))
+            {
+                statesByOutput.emplace(stateInfo.second, std::vector<State>());
+            }
+            statesByOutput.find(stateInfo.second)->second.emplace_back(stateInfo.first);
+        }
+
+        return statesByOutput;
     }
 
     void RemoveImpossibleStates()
@@ -371,61 +364,6 @@ private:
         throw std::range_error("Invalid state");
     }
 
-    static constexpr char NEW_STATE_CHAR = 'X';
-
-    static std::map<State, State> GetStateToNewStateMap(std::map<OutputSymbol,
-        std::vector<MooreGroup>>& groups, const std::string& firstOutput)
-    {
-        std::map<State, State> stateToNewState;
-        for (unsigned index = 1; auto& it: groups)
-        {
-            for (auto& group: it.second)
-            {
-                for(auto& state: group.GetStates())
-                {
-                    if (state == firstOutput)
-                    {
-                        stateToNewState[state] = NEW_STATE_CHAR + std::to_string(0);
-                        continue;
-                    }
-                    stateToNewState[state] = NEW_STATE_CHAR + std::to_string(index);
-                }
-                if (it.first != firstOutput)
-                {
-                    ++index;
-                }
-            }
-        }
-
-        return stateToNewState;
-    }
-
-    std::map<State, unsigned> GetStateIndexes()
-    {
-        std::map<State, unsigned> stateIndexes;
-        for (unsigned index = 0; auto& state: m_statesInfo)
-        {
-            stateIndexes[state.first] = index++;
-        }
-
-        return stateIndexes;
-    }
-
-    std::map<OutputSymbol, std::vector<State>> GetOutputToStatesMap()
-    {
-        std::map<OutputSymbol, std::vector<State>> statesByOutput;
-
-        for(auto& stateInfo: m_statesInfo)
-        {
-            if (!statesByOutput.contains(stateInfo.second))
-            {
-                statesByOutput.emplace(stateInfo.second, std::vector<State>());
-            }
-            statesByOutput.find(stateInfo.second)->second.emplace_back(stateInfo.first);
-        }
-
-        return statesByOutput;
-    }
 
     std::vector<std::string> m_inputSymbols;
     MooreStatesInfo m_statesInfo;
