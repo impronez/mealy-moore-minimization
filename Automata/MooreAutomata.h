@@ -211,10 +211,72 @@ public:
         //     }
         // }
 
-        BuildMinimizedAutomata(groups, stateIndexes, firstOutput);
+        BuildMinimizedAutomata(groups, stateIndexes);
     }
 
 private:
+
+    void BuildMinimizedAutomata(std::map<OutputSymbol, std::vector<MooreGroup>>& groups,
+        std::map<State, unsigned>& stateIndexes)
+    {
+        std::string firstOutput = m_statesInfo.front().first;
+
+        MooreStatesInfo newStatesInfo;
+
+        std::vector<std::pair<inputSymbol, std::vector<State>>> transitionTable;
+        for (auto& row: m_transitionTable)
+        {
+            transitionTable.emplace_back(row.first, std::vector<State>());
+        }
+
+        std::map<State, State> newStateNames = GetStateToNewStateMap(groups, firstOutput);
+
+        auto statesTransitions = GetStatesTransitions();
+
+        for (auto& pair: groups)
+        {
+            for (auto& group: pair.second)
+            {
+                std::string state = group.GetMainState();
+                std::string newState = newStateNames[state];
+                std::string outputSymbol = m_statesInfo.at(stateIndexes[state]).second;
+
+                auto transitions = statesTransitions[state];
+
+                if (state == firstOutput)
+                {
+                    newStatesInfo.emplace(newStatesInfo.begin(), newState, outputSymbol);
+
+                    for (unsigned i = 0; auto& it: transitions)
+                    {
+                        std::string nextState = newStateNames[it];
+                        transitionTable.at(i).second.emplace(transitionTable.at(i).second.begin(),
+                            nextState);
+                        ++i;
+                    }
+                }
+                else
+                {
+                    newStatesInfo.emplace_back(newState, outputSymbol);
+                    for (unsigned i = 0; auto& it: transitions)
+                    {
+                        std::string nextState = newStateNames[it];
+                        transitionTable.at(i).second.emplace_back(nextState);
+                        ++i;
+                    }
+                }
+            }
+        }
+
+        MooreTransitionTable newTransitionTable;
+        for (auto& it: transitionTable)
+        {
+            newTransitionTable.emplace_back(it);
+        }
+
+        m_statesInfo = newStatesInfo;
+        m_transitionTable = newTransitionTable;
+    }
     std::map<State, std::vector<State>> GetStatesTransitions()
     {
         std::map<State, std::vector<State>> statesTransitions;
@@ -308,60 +370,6 @@ private:
     }
 
     static constexpr char NEW_STATE_CHAR = 'X';
-
-    void BuildMinimizedAutomata(std::map<OutputSymbol, std::vector<MooreGroup>>& groups,
-        std::map<State, unsigned>& stateIndexes, const std::string& firstOutput)
-    {
-        MooreStatesInfo statesInfo;
-        std::vector<std::pair<InputSymbol, std::vector<State>>> transitionTable;
-        for (auto& row: m_transitionTable)
-        {
-            transitionTable.emplace_back(row.first, std::vector<State>());
-        }
-
-        std::map<State, State> stateToNewState = GetStateToNewStateMap(groups, firstOutput);
-
-        for (auto& it: groups)
-        {
-            for (auto& group: it.second)
-            {
-                std::string state = group.GetMainState();
-                unsigned stateIndex = stateIndexes[state];
-
-                if (it.first == firstOutput)
-                {
-                    statesInfo.emplace(statesInfo.begin(), stateToNewState[state], it.first);
-                }
-                else
-                {
-                    statesInfo.emplace_back(stateToNewState[state], it.first);
-                }
-
-                for (unsigned i = 0; auto& row: m_transitionTable)
-                {
-                    std::string oldState = row.second[stateIndex];
-                    std::string newState = stateToNewState[oldState];
-                    if (it.first == firstOutput)
-                    {
-                        transitionTable.at(i).second.emplace(transitionTable.at(i).second.begin(), newState);
-                    }
-                    else
-                    {
-                        transitionTable.at(i).second.emplace_back(newState);
-                    }
-                    ++i;
-                }
-            }
-        }
-        MooreTransitionTable table;
-        for (auto& it: transitionTable)
-        {
-            table.emplace_back(it.first, it.second);
-        }
-
-        m_statesInfo.swap(statesInfo);
-        m_transitionTable.swap(table);
-    }
 
     static std::map<State, State> GetStateToNewStateMap(std::map<OutputSymbol,
         std::vector<MooreGroup>>& groups, const std::string& firstOutput)
