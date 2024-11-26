@@ -381,19 +381,18 @@ private:
         {
             for (auto& group: it.second)
             {
-                std::string newState;
-                if (group.GetMainState() == firstOutput)
-                {
-                    newState = NEW_STATE_CHAR + std::to_string(0);
-                }
-                else
-                {
-                    newState = NEW_STATE_CHAR + std::to_string(index);
-                }
-
                 for(auto& state: group.GetStates())
                 {
-                    stateToNewState[state] = newState;
+                    if (state == firstOutput)
+                    {
+                        stateToNewState[state] = NEW_STATE_CHAR + std::to_string(0);
+                        continue;
+                    }
+                    stateToNewState[state] = NEW_STATE_CHAR + std::to_string(index);
+                }
+                if (it.first != firstOutput)
+                {
+                    ++index;
                 }
             }
         }
