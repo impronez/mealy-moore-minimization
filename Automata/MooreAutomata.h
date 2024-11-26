@@ -36,6 +36,11 @@ public:
         return m_states;
     }
 
+    [[nodiscard]] size_t GetStatesCount() const
+    {
+        return m_states.size();
+    }
+
     std::string GetMainState()
     {
         for (auto& state : m_states)
@@ -105,6 +110,8 @@ public:
 
     void Minimize() override
     {
+        RemoveImpossibleStates();
+
         std::string firstOutput = m_statesInfo.front().second;
 
         std::map<OutputSymbol, std::vector<MooreGroup>> groups;
@@ -112,6 +119,9 @@ public:
         std::map<State, unsigned> stateIndexes = GetStateIndexes();
         std::map<State, MooreGroup*> stateToGroup;
 
+        auto statesTransitions = GetStatesTransitions();
+
+        // To InitGroups()
         for (auto& it: statesByOutput)
         {
             for (auto& state: it.second)
@@ -128,45 +138,175 @@ public:
 
         while (true)
         {
-            unsigned size = GetGroupsSize(groups);
-            for (auto& elem: groups)
+            bool isChangedSize = false;
+            for (auto& pair: groups)
             {
-                for (auto& group: elem.second)
+                std::vector<MooreGroup> newGroups;
+                for (auto& group: pair.second)
                 {
-                    std::vector<MooreGroup*> transitionGroups;
-                    std::set<State> states = group.GetStates();
-
-                    for (auto& state: states)
+                    if (group.GetStatesCount() <= 1)
                     {
-                        if (transitionGroups.empty())
+                        continue;
+                    }
+
+                    std::string mainState = group.GetMainState();
+
+                    std::vector<MooreGroup*> groupTransitions;
+                    for (auto& it: statesTransitions[mainState])
+                    {
+                        groupTransitions.emplace_back(stateToGroup[it]);
+                    }
+
+                    for (auto& state: group.GetStates())
+                    {
+                        if (state == mainState)
                         {
-                            transitionGroups = GetStateTransitionGroups(stateToGroup, stateIndexes[state]);
                             continue;
                         }
 
-                        if (transitionGroups != GetStateTransitionGroups(stateToGroup, stateIndexes[state]))
+                        for (unsigned i = 0; auto& it: statesTransitions[state])
                         {
+                            if (groupTransitions.at(i++) != stateToGroup[it])
+                            {
+                                group.RemoveState(state);
 
-                            elem.second.emplace_back();
-                            elem.second.back().AddState(state);
+                                MooreGroup newGroup;
+                                newGroup.AddState(state);
 
-                            group.RemoveState(state);
+                                newGroups.push_back(newGroup);
+                                stateToGroup[state] = &newGroups.back();
 
-                            stateToGroup[state] = &elem.second.back();
+                                break;
+                            }
                         }
                     }
                 }
+
+                for (auto& it: newGroups)
+                {
+                    pair.second.push_back(it);
+                    if (!isChangedSize)
+                    {
+                        isChangedSize = true;
+                    }
+                }
             }
-            if (size == GetGroupsSize(groups))
+
+            if (!isChangedSize)
             {
                 break;
             }
         }
 
+        // for (auto& it: groups)
+        // {
+        //     for (auto& group: it.second)
+        //     {
+        //         std::cout << "Group: ";
+        //         for (auto& state: group.GetStates())
+        //         {
+        //             std::cout << state << " ";
+        //         }
+        //         std::cout << std::endl;
+        //     }
+        // }
+
         BuildMinimizedAutomata(groups, stateIndexes, firstOutput);
     }
 
 private:
+    std::map<State, std::vector<State>> GetStatesTransitions()
+    {
+        std::map<State, std::vector<State>> statesTransitions;
+        for (unsigned i = 0; auto& stateInfo: m_statesInfo)
+        {
+            std::vector<State> transitions;
+            for (auto& row: m_transitionTable)
+            {
+                transitions.emplace_back(row.second.at(i));
+            }
+            statesTransitions[stateInfo.first] = transitions;
+            ++i;
+        }
+
+        return statesTransitions;
+    }
+
+    void RemoveImpossibleStates()
+    {
+        auto possibleStatesSet = GetPossibleStates();
+        if (possibleStatesSet.size() == m_statesInfo.size())
+        {
+            return;
+        }
+
+        MooreStatesInfo newStatesInfo;
+        std::vector<unsigned> indexesToRemove;
+
+        for (unsigned i = 0; auto& it: m_statesInfo)
+        {
+            if (possibleStatesSet.contains(it.first))
+            {
+                newStatesInfo.emplace_back(it);
+            }
+            else
+            {
+                indexesToRemove.emplace(indexesToRemove.begin(), i);
+            }
+        }
+
+        for (auto& row: m_transitionTable)
+        {
+            for (auto& it: indexesToRemove)
+            {
+                row.second.erase(row.second.begin() + it);
+            }
+        }
+
+        m_statesInfo = newStatesInfo;
+    }
+
+    std::set<State> GetPossibleStates()
+    {
+        std::vector<State> possibleStatesVector = { m_statesInfo.front().first };
+        std::set<State> possibleStates = { m_statesInfo.front().first };
+        size_t possibleStatesIndex = 0;
+
+        while(possibleStatesIndex < possibleStatesVector.size())
+        {
+            std::string sourceState = possibleStatesVector[possibleStatesIndex++];
+            size_t index = GetIndexOfState(m_statesInfo, sourceState);
+
+            for (auto& it: m_transitionTable)
+            {
+                std::string state = it.second[index];
+                if (!possibleStates.contains(state))
+                {
+                    possibleStates.insert(state);
+                    possibleStatesVector.push_back(state);
+                }
+            }
+        }
+
+        return possibleStates;
+    }
+
+    static size_t GetIndexOfState(MooreStatesInfo& statesInfo, std::string& state)
+    {
+        unsigned index = 0;
+        for (auto& stateInfo: statesInfo)
+        {
+            if (stateInfo.first == state)
+            {
+                return index;
+            }
+
+            ++index;
+        }
+
+        throw std::range_error("Invalid state");
+    }
+
     static constexpr char NEW_STATE_CHAR = 'X';
 
     void BuildMinimizedAutomata(std::map<OutputSymbol, std::vector<MooreGroup>>& groups,
@@ -250,28 +390,6 @@ private:
         return stateToNewState;
     }
 
-    std::vector<MooreGroup*> GetStateTransitionGroups(std::map<State, MooreGroup*>& stateToGroup, unsigned index) const
-    {
-        std::vector<MooreGroup*> group;
-        for (auto& row: m_transitionTable)
-        {
-            std::string state = row.second[index];
-            group.emplace_back(stateToGroup[state]);
-        }
-
-        return group;
-    }
-
-    static unsigned GetGroupsSize(const std::map<OutputSymbol, std::vector<MooreGroup>>& groups)
-    {
-        unsigned size = 0;
-        for (auto& it: groups)
-        {
-            size += it.second.size();
-        }
-
-        return size;
-    }
 
     std::map<State, unsigned> GetStateIndexes()
     {
